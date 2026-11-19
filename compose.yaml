@@ -1,0 +1,147 @@
+services:
+  nicegui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vibeplanner-nicegui:local
+    container_name: vibeplanner-nicegui-poc
+    restart: unless-stopped
+    init: true
+    ports:
+    - 8088:8080
+    volumes:
+    - ./main.py:/app/main.py:ro
+    - ./planner_page.py:/app/planner_page.py:ro
+    - ./jupyterhub_workspaces.py:/app/jupyterhub_workspaces.py:ro
+    - ./vibeplanner_auth.py:/app/vibeplanner_auth.py:ro
+    - ./vibeplanner_sessions.py:/app/vibeplanner_sessions.py:ro
+    - ./.vibeplanner_session_secret:/run/secrets/vibeplanner_session_secret:ro
+    - ./workspaces.json:/app/workspaces.json:ro
+    - type: volume
+      source: workspace_0
+      target: /workspaces/andrel-2eluppi-40outlook-2ecom
+    - type: volume
+      source: workspace_1
+      target: /workspaces/aramis-2ehmoraes-40pucpr-2ebr
+    - type: volume
+      source: workspace_2
+      target: /workspaces/fernando-2ebusch-40ter-2egrupomarista-2eorg-2ebr
+    - type: volume
+      source: workspace_3
+      target: /workspaces/fernando-2ebusch-40ter-2eorg-2ebr
+    - type: volume
+      source: workspace_4
+      target: /workspaces/fernandobusch8-40gmail-2ecom
+    - type: volume
+      source: workspace_5
+      target: /workspaces/vinnius-2ekruger-40pucpr-2eedu-2ebr
+    - /home/ciseiadmin/JupyterHub/secrets/vibeplanner_api_token:/run/secrets/vibeplanner_jupyterhub_token:ro
+    - type: volume
+      source: workspace_andre-2erubens-40pucpr-2eedu-2ebr
+      target: /workspaces/andre-2erubens-40pucpr-2eedu-2ebr
+    - type: volume
+      source: workspace_andrel-2eluppi-2bnew-40outlook-2ecom
+      target: /workspaces/andrel-2eluppi-2bnew-40outlook-2ecom
+    - type: volume
+      source: workspace_aramis-2eext-40gmail-2ecom
+      target: /workspaces/aramis-2eext-40gmail-2ecom
+    - type: volume
+      source: workspace_cisei-2epid-40gmail-2ecom
+      target: /workspaces/cisei-2epid-40gmail-2ecom
+    - type: volume
+      source: workspace_edgard-2ejamhour-40pucpr-2ebr
+      target: /workspaces/edgard-2ejamhour-40pucpr-2ebr
+    - type: volume
+      source: workspace_i-2echueiri-40pucpr-2ebr
+      target: /workspaces/i-2echueiri-40pucpr-2ebr
+    - type: volume
+      source: workspace_marcelo-2epellenz-40pucpr-2ebr
+      target: /workspaces/marcelo-2epellenz-40pucpr-2ebr
+    - type: volume
+      source: workspace_mauricio-2ebic-40gmail-2ecom
+      target: /workspaces/mauricio-2ebic-40gmail-2ecom
+    - type: volume
+      source: workspace_piaceski-40yahoo-2ecom
+      target: /workspaces/piaceski-40yahoo-2ecom
+    - type: volume
+      source: workspace_voldi-2ezambenedetti-40pucpr-2ebr
+      target: /workspaces/voldi-2ezambenedetti-40pucpr-2ebr
+    environment:
+      PUID: '1000'
+      PGID: '100'
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY nao configurada}
+      CISEI_PLANNING_BASE_URL: http://cisei-planning-stack-network-service-1:8080
+      CISEI_PLANNING_WORKSPACE: /workspace/cisei_workspace
+      VIBEPLANNER_JUPYTERHUB_API_URL: http://172.17.0.1:8000/dev/hub/api
+      VIBEPLANNER_WORKSPACES_FILE: /app/workspaces.json
+      VIBEPLANNER_JUPYTERHUB_PUBLIC_URL: https://hub.ciseiplan.netiswork.pro.br/dev/hub
+      VIBEPLANNER_OAUTH_CALLBACK_URL: https://hub.ciseiplan.netiswork.pro.br/dev/vibeplanner/oauth_callback
+    networks:
+    - default
+    - cisei-internal
+    working_dir: /app
+    command: python /app/main.py
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',
+        timeout=3)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+volumes:
+  workspace_0:
+    external: true
+    name: jupyterhub-user-andrel-2eluppi-40outlook-2ecom
+  workspace_1:
+    external: true
+    name: jupyterhub-user-aramis-2ehmoraes-40pucpr-2ebr
+  workspace_2:
+    external: true
+    name: jupyterhub-user-fernando-2ebusch-40ter-2egrupomarista-2eorg-2ebr
+  workspace_3:
+    external: true
+    name: jupyterhub-user-fernando-2ebusch-40ter-2eorg-2ebr
+  workspace_4:
+    external: true
+    name: jupyterhub-user-fernandobusch8-40gmail-2ecom
+  workspace_5:
+    external: true
+    name: jupyterhub-user-vinnius-2ekruger-40pucpr-2eedu-2ebr
+  workspace_andre-2erubens-40pucpr-2eedu-2ebr:
+    external: true
+    name: jupyterhub-user-andre-2erubens-40pucpr-2eedu-2ebr
+  workspace_andrel-2eluppi-2bnew-40outlook-2ecom:
+    external: true
+    name: jupyterhub-user-andrel-2eluppi-2bnew-40outlook-2ecom
+  workspace_aramis-2eext-40gmail-2ecom:
+    external: true
+    name: jupyterhub-user-aramis-2eext-40gmail-2ecom
+  workspace_cisei-2epid-40gmail-2ecom:
+    external: true
+    name: jupyterhub-user-cisei-2epid-40gmail-2ecom
+  workspace_edgard-2ejamhour-40pucpr-2ebr:
+    external: true
+    name: jupyterhub-user-edgard-2ejamhour-40pucpr-2ebr
+  workspace_i-2echueiri-40pucpr-2ebr:
+    external: true
+    name: jupyterhub-user-i-2echueiri-40pucpr-2ebr
+  workspace_marcelo-2epellenz-40pucpr-2ebr:
+    external: true
+    name: jupyterhub-user-marcelo-2epellenz-40pucpr-2ebr
+  workspace_mauricio-2ebic-40gmail-2ecom:
+    external: true
+    name: jupyterhub-user-mauricio-2ebic-40gmail-2ecom
+  workspace_piaceski-40yahoo-2ecom:
+    external: true
+    name: jupyterhub-user-piaceski-40yahoo-2ecom
+  workspace_voldi-2ezambenedetti-40pucpr-2ebr:
+    external: true
+    name: jupyterhub-user-voldi-2ezambenedetti-40pucpr-2ebr
+networks:
+  cisei-internal:
+    external: true
+    name: cisei-planning-stack_cisei-internal

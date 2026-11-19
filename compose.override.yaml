@@ -1,0 +1,10 @@
+services:
+  nicegui:
+    volumes:
+      - type: volume
+        source: extra_andre-2erubens-40pucpr-2eedu-2ebr
+        target: /workspaces/andre-2erubens-40pucpr-2eedu-2ebr
+volumes:
+  extra_andre-2erubens-40pucpr-2eedu-2ebr:
+    external: true
+    name: jupyterhub-user-andre-2erubens-40pucpr-2eedu-2ebr

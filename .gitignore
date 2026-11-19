@@ -1,0 +1,43 @@
+# Credenciais e segredos
+.env
+.env.*
+!.env.example
+.vibeplanner_session_secret
+*token*
+*secret*
+*.pem
+*.key
+
+# Dados de usuários e workspaces
+workspaces.json
+workspaces/
+data/
+
+# Arquivos Python temporários
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Backups e versões antigas
+*.bak
+*.bak-*
+*.bak_*
+*.backup
+*.backup-*
+*.backup_*
+*.pre-oauth
+*.pre_multiworkspace
+*.pre_*
+*.backup-prod
+
+# Arquivos temporários e logs
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Pacotes binários locais
+wheels/
+*.whl
