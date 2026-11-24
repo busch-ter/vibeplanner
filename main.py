@@ -82,6 +82,154 @@ async def oauth_login(request: Request):
 import secrets
 from vibeplanner_sessions import create_session, get_session, revoke_session
 
+
+# ===== Provisionamento em background =====
+
+_provision_tasks = {}
+_provision_errors = {}
+
+
+async def provision_user_workspace(username):
+    import httpx
+    from urllib.parse import quote
+    from vibeplanner_auth import HUB_API_URL
+    from jupyterhub_workspaces import authorized_workspaces
+
+    if username not in authorized_workspaces():
+        raise PermissionError("Usuário sem workspace autorizado.")
+
+    token = Path(
+        "/run/secrets/vibeplanner_jupyterhub_token"
+    ).read_text(encoding="utf-8").strip()
+
+    url = f"{HUB_API_URL}/users/{quote(username, safe='')}"
+    headers = {"Authorization": f"token {token}"}
+
+    async with httpx.AsyncClient(
+        headers=headers, timeout=30
+    ) as client:
+
+        response = await client.get(url)
+        response.raise_for_status()
+
+        server = (
+            response.json().get("servers") or {}
+        ).get("", {})
+
+        if not server.get("ready") and not server.get("pending"):
+            response = await client.post(f"{url}/server")
+            response.raise_for_status()
+
+        for _ in range(150):
+            response = await client.get(url)
+            response.raise_for_status()
+
+            server = (
+                response.json().get("servers") or {}
+            ).get("", {})
+
+            if server.get("ready"):
+                try:
+                    workspace = user_workspace(username)
+
+                    notebook = (
+                        workspace / "notebooks"
+                        / "CISEI_Scenario_Builder.ipynb"
+                    )
+
+                    if notebook.is_file() and (
+                        workspace / "projects"
+                    ).is_dir():
+                        print(
+                            f"[VIBEPLANNER INIT] Workspace pronto: {username}",
+                            flush=True,
+                        )
+                        return
+
+                except PermissionError:
+                    pass
+
+            await asyncio.sleep(2)
+
+    raise RuntimeError("Timeout no provisionamento.")
+
+
+async def provision_worker(username):
+    try:
+        await provision_user_workspace(username)
+
+    except Exception as exc:
+        _provision_errors[username] = type(exc).__name__
+
+        status = getattr(
+            getattr(exc, "response", None),
+            "status_code",
+            None,
+        )
+
+        print(
+            f"[VIBEPLANNER INIT ERROR] "
+            f"user={username} "
+            f"type={type(exc).__name__} "
+            f"http_status={status}",
+            flush=True,
+        )
+
+    finally:
+        _provision_tasks.pop(username, None)
+
+
+def start_workspace_provisioning(username):
+    if username not in _provision_tasks:
+        _provision_errors.pop(username, None)
+
+        _provision_tasks[username] = asyncio.create_task(
+            provision_worker(username)
+        )
+
+
+@nicegui_app.get('/provisioning')
+async def provisioning_page(request: Request):
+    from fastapi.responses import HTMLResponse
+
+    username = get_session(
+        request.cookies.get("vibeplanner_sid")
+    )
+
+    if not username:
+        return RedirectResponse("/login", status_code=303)
+
+    if username in _provision_tasks:
+        return HTMLResponse("""
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta http-equiv="refresh" content="3">
+            </head>
+            <body style="font-family:Arial;text-align:center;padding:80px">
+                <h2>VibePlanner AI</h2>
+                <h3>Preparando seu ambiente de trabalho...</h3>
+                <p>Esta operação ocorre apenas no primeiro acesso.</p>
+                <p>Aguarde a inicialização automática do ambiente.</p>
+            </body>
+            </html>
+        """)
+
+    if username in _provision_errors:
+        return HTMLResponse("""
+            <h2>VibePlanner AI</h2>
+            <p>Não foi possível provisionar seu ambiente.</p>
+            <a href="login">Tentar novamente</a>
+        """, status_code=503)
+
+    try:
+        user_workspace(username)
+        return RedirectResponse("/", status_code=303)
+
+    except PermissionError:
+        return RedirectResponse("/login", status_code=303)
+
+
 @nicegui_app.get('/oauth_callback')
 async def oauth_callback(
     request: Request,
@@ -111,7 +259,32 @@ async def oauth_callback(
         username = await authenticated_user(token)
 
         stage = 'user_workspace'
-        workspace = user_workspace(username)
+
+        from jupyterhub_workspaces import authorized_workspaces
+
+        authorized = authorized_workspaces()
+
+        if username not in authorized:
+            raise PermissionError("Usuário sem workspace autorizado.")
+
+        expected_workspace = authorized[username]
+
+        if expected_workspace.is_symlink():
+            raise PermissionError("Workspace inválido.")
+
+        needs_provisioning = not (
+            expected_workspace.is_dir()
+            and (expected_workspace / "projects").is_dir()
+            and (
+                expected_workspace / "notebooks"
+                / "CISEI_Scenario_Builder.ipynb"
+            ).is_file()
+        )
+
+        if needs_provisioning:
+            start_workspace_provisioning(username)
+        else:
+            workspace = user_workspace(username)
 
     except Exception as exc:
         status = getattr(
@@ -153,7 +326,10 @@ async def oauth_callback(
     request.session.clear()
     sid = create_session(username)
 
-    response = RedirectResponse('/', status_code=303)
+    response = RedirectResponse(
+        '/provisioning' if needs_provisioning else '/',
+        status_code=303,
+    )
     response.set_cookie(
         key='vibeplanner_sid',
         value=sid,
