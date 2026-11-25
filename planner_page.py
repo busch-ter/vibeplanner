@@ -48,12 +48,12 @@ class PlannerPanel:
                 self._status.text = message
 
     @staticmethod
-    def _open_sdk(folder):
+    def _open_sdk(folder, planner):
         from cisei_planning_sdk import PlanningClient, PlanningProject
         url = os.environ.get('CISEI_PLANNING_BASE_URL', 'http://cisei-planning-stack-network-service-1:8080').strip()
         client = PlanningClient(url, workspace=str(folder.parent.parent), timeout=7200.0)
         project = PlanningProject(str(folder))
-        return client, project, client.open_project(project, planner='graph')
+        return client, project, client.open_project(project, planner=planner)
 
     @staticmethod
     def _plot_html(result, kind, path):
@@ -141,6 +141,13 @@ class PlannerPanel:
 
             self._status = ui.label('Sessão SDK aberta.' if key in self._sessions else 'Projeto ainda não aberto no SDK.').classes('text-sm whitespace-pre-wrap')
             details = ui.label('').classes('text-sm whitespace-pre-wrap')
+            planner_type = ui.select(
+                {'cell': 'Cell — LTE / LoRaWAN',
+                 'graph': 'Graph — Mesh / Multissalto'},
+                value='cell',
+                label='Tipo de planejador'
+            ).props('outlined').classes('w-72')
+
             limit = ui.number('Distância máxima (m)', value=5000, min=1, step=100).classes('w-52').props('outlined')
             preserve = ui.checkbox('Preservar candidatos existentes', value=False)
             batch = ui.number('Tamanho do lote', value=20, min=1, step=1).classes('w-44').props('outlined')
@@ -190,6 +197,7 @@ class PlannerPanel:
 
             def sync_buttons():
                 busy = lock.locked()
+                planner_type.disable() if busy or key in self._sessions else planner_type.enable()
                 has_session = key in self._sessions
                 for b in all_buttons:
                     allowed = not busy and not errors and (b in (open_button, saved_candidate_button, saved_map_button) or has_session)
@@ -264,6 +272,7 @@ class PlannerPanel:
                 details.text = ''
                 try:
                     # Copiar parâmetros no thread da UI, antes de iniciar a tarefa.
+                    selected_planner = planner_type.value
                     params = dict(limit_m=int(limit.value), preserve_existing=bool(preserve.value),
                                   batch_size=int(batch.value), geo_timeout=float(geo_timeout.value),
                                   geo_pool_size=int(pool.value), rank_threshold=float(threshold.value))
@@ -284,8 +293,8 @@ class PlannerPanel:
                             _, _, document = self._plot_html(result, kind, folder / filename)
                             return ('map', kind if kind == 'candidate' else 'saved', document)
                         if action == 'abrir':
-                            self._sessions[key] = self._open_sdk(folder)
-                            return 'Sessão aberta com planner=graph.'
+                            self._sessions[key] = self._open_sdk(folder, selected_planner)
+                            return f'Sessão aberta com planner={selected_planner}.'
                         if key not in self._sessions:
                             raise RuntimeError('Abra primeiro o projeto no SDK.')
                         client, project, scenario = self._sessions[key]
